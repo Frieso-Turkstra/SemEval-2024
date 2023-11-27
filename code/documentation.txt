@@ -1,0 +1,10 @@
+Group 3: How to run our baseline model:
+
+For subtask A - monolingual:
+python transformer_baseline.py --train_file_path subtaskA_train_monolingual.jsonl --test_file_path subtaskA_dev_monolingual.jsonl --subtask A --model "distilbert-base-uncased-finetuned-sst-2-english" --prediction_file_path pred_A_mono.jsonl
+
+For subtask A - multilingual:
+python transformer_baseline.py --train_file_path subtaskA_train_multilingual.jsonl --test_file_path subtaskA_dev_multilingual.jsonl --subtask A --model "distilbert-base-uncased-finetuned-sst-2-english" --prediction_file_path pred_A_multi.jsonl
+
+For subtask B:
+python transformer_baseline.py --train_file_path subtaskB_train.jsonl --test_file_path subtaskB_dev.jsonl --subtask B --model "MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli" --prediction_file_path pred_B.jsonl
