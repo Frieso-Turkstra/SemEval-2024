@@ -27,9 +27,25 @@ def split_file(file_path: str, batch_size: int) -> None:
 
 def merge_files(files: list, output_file: str) -> None:
     """
-    files -> list of json files to be merged
+    files -> list of jsonl files to be merged
     output_file -> path to which the merged jsonl file will be saved
     """
     dfs = [pd.read_json(file, lines=True) for file in files]
     temp = pd.concat(dfs, ignore_index=True)
     temp.to_json(output_file, lines=True, orient='records')
+
+
+def normalize(file_path: str) -> list:
+    # read in data (assumes jsonl file)
+    df = pd.read_json(file_path, lines=True)
+    values = df['perplexity'] # or df['data']
+
+    # normalize data
+    norm_values = (values - values.min()) / (values.max() - values.min())
+
+    # save data to new file in same directory as original file
+    file_name = f"{file_path[:file_path.rfind('.')]}_norm.jsonl"
+    norm_df = pd.DataFrame({'id': df['id'], 'data': norm_values})
+    norm_df.to_json(file_name, lines=True, orient='records')
+
+normalize("../data/perplexities/subtaskB_dev_gpt2-xl_512.jsonl")
