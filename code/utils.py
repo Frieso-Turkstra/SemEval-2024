@@ -35,7 +35,7 @@ def merge_files(files: list, output_file: str) -> None:
     temp.to_json(output_file, lines=True, orient='records')
 
 
-def normalize(file_path: str) -> list:
+def normalize(file_path: str) -> None:
     # read in data (assumes jsonl file)
     df = pd.read_json(file_path, lines=True)
     values = df['perplexity'] # or df['data']
@@ -48,4 +48,15 @@ def normalize(file_path: str) -> list:
     norm_df = pd.DataFrame({'id': df['id'], 'data': norm_values})
     norm_df.to_json(file_name, lines=True, orient='records')
 
-normalize("../data/perplexities/subtaskB_dev_gpt2-xl_512.jsonl")
+
+def one_hot_encode_pos(file_path: str) -> None:
+    # Read in data
+    df = pd.read_json(file_path, lines=True)
+
+    # Get one hot encoding of data column
+    one_hot = pd.get_dummies(df['data'])
+    
+    # Save data to new file in same directory as original file
+    file_name = f"{file_path[:file_path.rfind('.')]}_norm.jsonl"
+    norm_df = pd.DataFrame({'id': df['id'], 'data': one_hot})
+    norm_df.to_json(file_name, lines=True, orient='records')
