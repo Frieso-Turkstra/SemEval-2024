@@ -12,13 +12,13 @@ import math
 import stanza
 from langdetect import detect
 from collections import Counter
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
+import pandas as pd
 
-# Download necessary NLTK data
 nltk.download('averaged_perceptron_tagger')
 nltk.download('punkt')
 nltk.download('stopwords')
 
-# Function to create a command line argument parser
 def create_argparser():
     parser = argparse.ArgumentParser(description='Run linguistic feature extraction for specified subtasks.')
     parser.add_argument('--input_file', '-i', required=True, help='Path to the input file.', type=str)
@@ -130,7 +130,6 @@ def detect_language(text):
 def load_stanza_model(language):
     return stanza.Pipeline(lang=language, processors='tokenize,pos')
 
-# Main function
 if __name__ == '__main__':
     args = create_argparser()
 
@@ -160,6 +159,7 @@ if __name__ == '__main__':
             'avg_sentence_length': np.mean(sentence_lengths) if sentence_lengths else 0,
             'avg_word_length': calculate_avg_word_length(text),
             'sentence_length_range': calculate_sentence_length_range(sentence_lengths),
+            # Add other features as necessary
         }
 
         # Calculate text coherence
@@ -190,10 +190,34 @@ if __name__ == '__main__':
 
         output_data.append({"id": item['id'], "model": item['model'], "features": features})
 
-    # Write output data to file
+    # Convert the extracted features into a DataFrame
+    feature_df = pd.DataFrame([item['features'] for item in output_data])
+
+    # Identify and separate non-numeric features
+    non_numeric_features = feature_df.select_dtypes(exclude=[np.number])
+    numeric_features = feature_df.select_dtypes(include=[np.number])
+
+    # Handle missing values for numeric features
+    numeric_features.fillna(numeric_features.mean(), inplace=True)
+
+    # Feature Scaling for numeric features
+    scaler = StandardScaler()  # or use MinMaxScaler()
+    scaled_numeric_features = scaler.fit_transform(numeric_features)
+
+    # Reconstruct the full feature set by combining scaled numeric features with non-numeric features
+    scaled_features_df = pd.DataFrame(scaled_numeric_features, columns=numeric_features.columns)
+    full_feature_df = pd.concat([scaled_features_df, non_numeric_features.reset_index(drop=True)], axis=1)
+
+    # Convert scaled features back to a list of dictionaries for JSON serialization
+    scaled_output_data = []
+    for index, item in enumerate(output_data):
+        item['features'] = full_feature_df.iloc[index].to_dict()
+        scaled_output_data.append(item)
+
+    # Write scaled output data to file
     try:
         with open(args.output_file, 'w') as outfile:
-            json.dump(output_data, outfile, indent=4)
+            json.dump(scaled_output_data, outfile, indent=4)
     except Exception as e:
         print(f"Error writing output file: {e}")
         exit(1)
