@@ -3,6 +3,8 @@ import torch
 from tqdm import tqdm
 import pandas as pd
 import argparse
+from utils import extract_file_name
+
 
 # https://huggingface.co/spaces/evaluate-metric/perplexity
 # https://huggingface.co/docs/transformers/perplexity 
@@ -12,7 +14,7 @@ def create_argparser():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', '-m', required=True, help='Transformer to train and test', type=str)
     parser.add_argument('--input_file', '-i', required=True, help='Path to the input file.', type=str)
-    parser.add_argument('--output_file', '-o', required=True, help='Path to the output file.', type=str)
+    parser.add_argument('--output_file', '-o', help='Path to the output file.', type=str)
     parser.add_argument('--stride', '-s', help='Set stride of the sliding window', default=512, type=int)
     args = parser.parse_args()
     return args
@@ -45,7 +47,7 @@ def calculate_perplexity(encodings, model, stride, device='cuda'):
             prev_end_loc = end_loc
             if end_loc == seq_len:
                 break
-            
+        
         perplexity = torch.exp(torch.stack(nlls).mean())
         perplexities.append(perplexity.item()) 
 
@@ -73,5 +75,9 @@ if __name__ == '__main__':
     perplexities = calculate_perplexity(encodings, model, args.stride)
 
     # Save results to output file
+    if not (output_file := args.output_file):
+        file_name = extract_file_name(args.input_file)
+        output_file = f'perplexities/{file_name}_{args.model}_{args.stride}.jsonl'
+    
     perplexities_df = pd.DataFrame({'id': df['id'], 'perplexity': perplexities})
-    perplexities_df.to_json(args.output_file, lines=True, orient='records')
+    perplexities_df.to_json(output_file, lines=True, orient='records')
