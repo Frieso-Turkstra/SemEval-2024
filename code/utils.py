@@ -51,11 +51,14 @@ def split_text(text, batch_size=10_000):
     return subtexts
 
 
-def split_too_large_entries(files, max_size):
+def split_too_large_entries(files, max_size=10_000):
     """
     - Detects too large entries (texts larger than max_size)
     - Those entries are split into smaller parts and saved into the original file
-    - After this, calculate perplexity scores and call the merge_on_id function.
+    (For perplexity, don't forget to call the merge_on_id function afterwards.)
+
+    files -> list of file_paths 
+    max_size -> max number of tokens in one entry
     """
     for file in files:
         # read in original file
