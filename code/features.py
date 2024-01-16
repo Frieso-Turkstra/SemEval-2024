@@ -7,26 +7,18 @@ from nltk.probability import FreqDist
 from bs4 import BeautifulSoup
 import html
 from spellchecker import SpellChecker
-from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 import math
 import stanza
 from langdetect import detect
 from collections import Counter
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
-import pandas as pd
+from nltk import bigrams
 
+
+# Download necessary resources from NLTK
 nltk.download('averaged_perceptron_tagger')
 nltk.download('punkt')
 nltk.download('stopwords')
-
-def create_argparser():
-    parser = argparse.ArgumentParser(description='Run linguistic feature extraction for specified subtasks.')
-    parser.add_argument('--input_file', '-i', required=True, help='Path to the input file.', type=str)
-    parser.add_argument('--output_file', '-o', required=True, help='Path to the output file.', type=str)
-    parser.add_argument('--subtask', '-s', required=True, choices=['SubtaskAmono', 'SubtaskAmulti', 'SubtaskB'], help='Subtask to execute', type=str)
-    parser.add_argument('--limit', '-l', help='Limit the number of lines to process from the input file.', type=int, default=None)
-    parser.add_argument('--ngram_size', '-n', help='Size of the n-grams to be extracted.', type=int, default=2)
-    return parser.parse_args()
 
 # Function to clean HTML text using BeautifulSoup
 def clean_html_text(text):
@@ -59,12 +51,24 @@ def calculate_avg_word_length(text):
     words = word_tokenize(text)
     return np.mean([len(word) for word in words]) if words else 0
 
-# Function to extract top n-grams from data
-def extract_top_ngrams(data, ngram_size=2, top_n=100):
-    vectorizer = TfidfVectorizer(ngram_range=(ngram_size, ngram_size), stop_words=None)
-    X = vectorizer.fit_transform(data)
-    sorted_ngrams = sorted(vectorizer.vocabulary_, key=vectorizer.vocabulary_.get, reverse=True)
-    return set(sorted_ngrams[:top_n])
+# Function to extract bigrams
+def extract_all_bigrams(data):
+    bigrams_text_list = []
+
+    for item in data:
+        text = item['text']
+        tokens = word_tokenize(text)
+        bigrams_list = list(bigrams(tokens))
+        bigrams_text = ' '.join(['_'.join(bigram) for bigram in bigrams_list]) # Joining each bigram with an underscore and then all bigrams with spaces
+        bigrams_text_list.append(bigrams_text)
+
+    return bigrams_text_list
+
+# Function to vectorize bigrams
+def vectorize_bigrams(all_bigrams_text):
+    vectorizer = CountVectorizer(analyzer='word')
+    X = vectorizer.fit_transform(all_bigrams_text)
+    return X, vectorizer.get_feature_names_out()
 
 # Function to count spelling errors in text
 def count_spelling_errors(text):
@@ -88,12 +92,12 @@ def calculate_text_coherence(text, window_size=2):
         p_x = word_freq[word1] / total_words
         p_y = word_freq[word2] / total_words
 
-        if p_xy > 0:
+        if p_xy > 0 and p_x * p_y > 0:
             pmi = math.log(p_xy / (p_x * p_y))
-            npmi = pmi / (-math.log(p_xy))
+            npmi = pmi / (-math.log(p_xy)) if p_xy != 1 else 0
         else:
-            pmi = 0  # Set pmi to 0 when p_xy is 0
-            npmi = 0  # Set npmi to 0 when p_xy is 0
+            pmi = 0
+            npmi = 0
 
         pmi_values[(word1, word2)] = pmi
         npmi_values[(word1, word2)] = npmi
@@ -104,18 +108,15 @@ def calculate_text_coherence(text, window_size=2):
     return avg_pmi, avg_npmi
 
 # Function to calculate proportions of POS tags in text
-def pos_tag_proportions(text):
-    tokens = nltk.word_tokenize(text)
-    pos_tags = nltk.pos_tag(tokens)
+def pos_tag_proportions(text, stanza_model=None):
+    if stanza_model is not None:
+        doc = stanza_model(text)
+        pos_tags = [(word.text, word.upos) for sent in doc.sentences for word in sent.words]
+    else:
+        tokens = nltk.word_tokenize(text)
+        pos_tags = nltk.pos_tag(tokens)
+    
     tag_freq = FreqDist(tag for (word, tag) in pos_tags)
-    total = sum(tag_freq.values())
-    return {tag: freq / total for tag, freq in tag_freq.items()}
-
-# Function to calculate POS tag proportions using the Stanza library
-def pos_tag_stanza(text, model):
-    doc = model(text)
-    pos_tags = [word.pos for sent in doc.sentences for word in sent.words]
-    tag_freq = FreqDist(pos_tags)
     total = sum(tag_freq.values())
     return {tag: freq / total for tag, freq in tag_freq.items()}
 
@@ -128,96 +129,110 @@ def detect_language(text):
 
 # Function to load Stanza model for a given language
 def load_stanza_model(language):
-    return stanza.Pipeline(lang=language, processors='tokenize,pos')
+    try:
+        return stanza.Pipeline(lang=language, processors='tokenize,pos')
+    except Exception as e:
+        print(f"Stanza model loading error for language {language}: {e}. Defaulting to English.")
+        return stanza.Pipeline(lang='en', processors='tokenize,pos')
+        
+class NumpyEncoder(json.JSONEncoder):
+    """ Custom encoder for numpy data types """
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return json.JSONEncoder.default(self, obj)
+
+# Function to create argument parser for command line interface
+def create_argparser():
+    parser = argparse.ArgumentParser(description='Run linguistic feature extraction based on mode.')
+    parser.add_argument('--input_file', '-i', required=True, help='Path to the input file.', type=str)
+    parser.add_argument('--output_file', '-o', required=True, help='Path to the output file.', type=str)
+    parser.add_argument('--mode', required=True, choices=['variability', 'avg_sentence_length', 'avg_word_length', 'sentence_length_range', 'avg_pmi', 'avg_npmi', 'ngrams', 'pos_mono', 'spelling_error_mono', 'pos_multi'], help='Mode to execute')
+    parser.add_argument('--limit', help='Limit the number of data items to process.', type=int, default=None)
+    return parser.parse_args()
 
 if __name__ == '__main__':
     args = create_argparser()
 
-    loaded_stanza_models = {}
-
     try:
         with open(args.input_file, 'r') as file:
-            data = [json.loads(line) for line in file][:args.limit or None]
+            data = [json.loads(line) for line in file]
     except Exception as e:
         print(f"Error reading input file: {e}")
         exit(1)
 
-    # Extract top n-grams and fit a TF-IDF vectorizer
-    common_ngrams = extract_top_ngrams([item['text'] for item in data], ngram_size=args.ngram_size, top_n=100)
-    vectorizer = TfidfVectorizer(ngram_range=(1, args.ngram_size), stop_words=None)
-    vectorizer.fit_transform([' '.join(common_ngrams)])
+    if args.limit is not None:
+        data = data[:args.limit]
 
-    # Process each item in the data
+    loaded_stanza_models = {}
     output_data = []
+
+    # Extract and vectorize all bigrams if the mode is 'ngrams'
+    if args.mode == 'ngrams':
+        all_bigrams_text = extract_all_bigrams(data)
+        bigram_vectors, feature_names = vectorize_bigrams(all_bigrams_text)
+
     for item in data:
         text = clean_html_text(item['text'])
+        feature_result = None
 
-        sentence_lengths = get_sentence_lengths(text)
-        word_count = len(word_tokenize(text))
-        features = {
-            'variability': calculate_sentence_length_variance(sentence_lengths),
-            'avg_sentence_length': np.mean(sentence_lengths) if sentence_lengths else 0,
-            'avg_word_length': calculate_avg_word_length(text),
-            'sentence_length_range': calculate_sentence_length_range(sentence_lengths),
-            # Add other features as necessary
-        }
-
-        # Calculate text coherence
-        avg_pmi, avg_npmi = calculate_text_coherence(text)
-        features['text_coherence_avg_pmi'] = avg_pmi
-        features['text_coherence_avg_npmi'] = avg_npmi
-
-        # Transform text with TF-IDF vectorizer and add to features
-        ngram_vector = vectorizer.transform([text]).toarray().flatten().tolist()
-        features['ngrams'] = ngram_vector
-
-        # Perform POS tagging and add relevant features
-        if args.subtask == 'SubtaskAmono':
-            pos_prop = pos_tag_proportions(text)
-            features['POS_tag_proportions'] = pos_prop
-            features['spelling_error_ratio'] = count_spelling_errors(text) / word_count if word_count else 0
-
-        elif args.subtask in ['SubtaskAmulti', 'SubtaskB']:
+        if args.mode == 'variability':
+            sentence_lengths = get_sentence_lengths(text)
+            feature_result = calculate_sentence_length_variance(sentence_lengths)
+        elif args.mode == 'avg_sentence_length':
+            sentence_lengths = get_sentence_lengths(text)
+            feature_result = np.mean(sentence_lengths) if sentence_lengths else 0
+        elif args.mode == 'avg_word_length':
+            feature_result = calculate_avg_word_length(text)
+        elif args.mode == 'sentence_length_range':
+            sentence_lengths = get_sentence_lengths(text)
+            feature_result = calculate_sentence_length_range(sentence_lengths)
+        elif args.mode == 'avg_pmi':
+            avg_pmi, avg_npmi = calculate_text_coherence(text)
+            feature_result = avg_pmi
+        elif args.mode == 'avg_npmi':
+            avg_pmi, avg_npmi = calculate_text_coherence(text)
+            feature_result = avg_npmi
+        elif args.mode == 'ngrams':
+            N = 10  # Number of top bigrams to extract
+            doc_idx = data.index(item)  
+            bigram_freqs = bigram_vectors[doc_idx].toarray()[0]  
+            top_bigrams_indices = np.argsort(bigram_freqs)[-N:][::-1] 
+            top_bigrams_frequencies = [bigram_freqs[idx] for idx in top_bigrams_indices]
+            feature_result = top_bigrams_frequencies
+        elif args.mode == 'pos_mono':
+            feature_result = pos_tag_proportions(text)
+        elif args.mode == 'spelling_error_mono':
+            feature_result = count_spelling_errors(text)
+        elif args.mode == 'pos_multi':
             language = detect_language(text)
             if language not in loaded_stanza_models:
-                try:
-                    loaded_stanza_models[language] = load_stanza_model(language)
-                except Exception as e:
-                    print(f"Error loading Stanza model for language {language}: {e}")
-                    continue
-            pos_prop = pos_tag_stanza(text, loaded_stanza_models[language])
-            features['POS_tag_proportions'] = pos_prop
+                loaded_stanza_models[language] = load_stanza_model(language)
+            stanza_model = loaded_stanza_models[language]
+            feature_result = pos_tag_proportions(text, stanza_model)
 
-        output_data.append({"id": item['id'], "model": item['model'], "features": features})
+        # Convert NumPy types to Python types before JSON serialization
+        if isinstance(feature_result, np.integer):
+            feature_result = feature_result.item()
+        elif isinstance(feature_result, np.floating):
+            feature_result = feature_result.item()
+        
+        # Convert NumPy types to Python types before JSON serialization
+        if isinstance(feature_result, np.number):  # This checks for any kind of NumPy number
+            feature_result = feature_result.item()  # Converts to native Python type
+        output_data.append({"id": item['id'], "model": item['model'], "feature": {args.mode: feature_result}})
 
-    # Convert the extracted features into a DataFrame
-    feature_df = pd.DataFrame([item['features'] for item in output_data])
-
-    # Identify and separate non-numeric features
-    non_numeric_features = feature_df.select_dtypes(exclude=[np.number])
-    numeric_features = feature_df.select_dtypes(include=[np.number])
-
-    # Handle missing values for numeric features
-    numeric_features.fillna(numeric_features.mean(), inplace=True)
-
-    # Feature Scaling for numeric features
-    scaler = StandardScaler()  # or use MinMaxScaler()
-    scaled_numeric_features = scaler.fit_transform(numeric_features)
-
-    # Reconstruct the full feature set by combining scaled numeric features with non-numeric features
-    scaled_features_df = pd.DataFrame(scaled_numeric_features, columns=numeric_features.columns)
-    full_feature_df = pd.concat([scaled_features_df, non_numeric_features.reset_index(drop=True)], axis=1)
-
-    # Convert scaled features back to a list of dictionaries for JSON serialization
-    scaled_output_data = []
-    for index, item in enumerate(output_data):
-        item['features'] = full_feature_df.iloc[index].to_dict()
-        scaled_output_data.append(item)
-
-    # Write scaled output data to file
     try:
         with open(args.output_file, 'w') as outfile:
-            json.dump(scaled_output_data, outfile, indent=4)
+            for item in output_data:
+                feature_name = args.mode
+                output_line = {"id": item['id'], feature_name: item['feature'][feature_name]}
+                json.dump(output_line, outfile, cls=NumpyEncoder)
+                outfile.write('\n')
     except Exception as e:
         print(f"Error writing output file: {e}")
         exit(1)
