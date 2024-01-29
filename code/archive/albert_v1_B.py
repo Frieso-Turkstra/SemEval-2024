@@ -3,62 +3,12 @@ import pandas as pd
 import evaluate
 import numpy as np
 from transformers import AutoModelForSequenceClassification, TrainingArguments, Trainer, DataCollatorWithPadding, AutoTokenizer, set_seed
-from transformers.modeling_outputs import SequenceClassifierOutput
 import os
 from sklearn.model_selection import train_test_split
 from scipy.special import softmax
 import argparse
 import logging
-from torch import nn
-
-
-"""
-TO DO:
-- automatically set the input size of additional dense layer based on model's output size
-- implement early stopping
-- learning rate scheduler?
-- add gradient accumulation if neccessary (fp16, quantization?)
-- [DONE] load custom model
-- train custom model
-- test custom model
-"""
-
-
-class CustomModel(nn.Module):
-    def __init__(self, model_path, label2id, id2label):
-        super(CustomModel, self).__init__()
-        self.num_labels = len(label2id)
-
-        #Load Model and extract its body
-        self.model = AutoModelForSequenceClassification.from_pretrained(
-            model_path, num_labels=self.num_labels, id2label=id2label, label2id=label2id,
-            ignore_mismatched_sizes=True, output_attentions=True, output_hidden_states=True
-        )
-
-        # 768 is size of hidden_state
-        self.linear = nn.Linear(768, self.num_labels) # load and initialize weights
-
-    
-    def forward(self, input_ids=None, attention_mask=None, labels=None):
-        #Extract outputs from the body
-        outputs = self.model(input_ids=input_ids, attention_mask=attention_mask)
-        # the last hidden state will be of the shape (16, x, 768)
-        # BATCH_SIZE=16
-        # MAX_LENGTH=?
-        # DistilBERT has a hidden size of 768.
-
-        #Add custom layers
-        # sequence_output has the following shape: (batch_size, sequence_length, 768)
-        # linear1_output = self.linear1(sequence_output[:,0,:].view(-1,768)) ## extract the 1st token's embeddings
-        logits = self.linear(outputs.hidden_states[-1][:,0,:].view(-1, 768)) # calculate losses
-        # Concatenate normalised feature vector to sequence_output?
-
-        loss = None
-        if labels is not None:
-            loss_fct = nn.CrossEntropyLoss()
-            loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
-        
-        return SequenceClassifierOutput(loss=loss, logits=logits, hidden_states=outputs.hidden_states, attentions=outputs.attentions)
+from os.path import dirname
 
 
 def preprocess_function(examples, **fn_kwargs):
@@ -91,22 +41,20 @@ def compute_metrics(eval_pred):
     return results
 
 
-def fine_tune(train_df, valid_df, checkpoints_path, id2label, label2id, model):
+def fine_tune(train_df, valid_df, checkpoints_path, id2label, label2id, model, fp16=True, fp16_full_eval=True, gradient_accumulation_steps=4):
 
     # pandas dataframe to huggingface Dataset
     train_dataset = Dataset.from_pandas(train_df)
     valid_dataset = Dataset.from_pandas(valid_df)
     
     # get tokenizer and model from huggingface
-    tokenizer = AutoTokenizer.from_pretrained(model)     
-    #model = AutoModelForSequenceClassification.from_pretrained(
-    #   model, num_labels=len(label2id), id2label=id2label, label2id=label2id, ignore_mismatched_sizes=True
-    #)
-    model = CustomModel(model, label2id, id2label)
+    tokenizer = AutoTokenizer.from_pretrained("albert-base-v1")     
+    model = AutoModelForSequenceClassification.from_pretrained("albert-base-v1", num_labels=len(label2id), id2label=id2label, label2id=label2id, ignore_mismatched_sizes=True
+    )
     
     # tokenize data for train/valid
     tokenized_train_dataset = train_dataset.map(preprocess_function, batched=True, fn_kwargs={'tokenizer': tokenizer})
-    tokenized_valid_dataset = valid_dataset.map(preprocess_function, batched=True,  fn_kwargs={'tokenizer': tokenizer})
+    tokenized_valid_dataset = valid_dataset.map(preprocess_function, batched=True, fn_kwargs={'tokenizer': tokenizer})
     
     data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
 
@@ -114,13 +62,16 @@ def fine_tune(train_df, valid_df, checkpoints_path, id2label, label2id, model):
     training_args = TrainingArguments(
         output_dir=checkpoints_path,
         learning_rate=2e-5,
-        per_device_train_batch_size=16,
-        per_device_eval_batch_size=16,
-        num_train_epochs=1, # was 3
+        per_device_train_batch_size=8,
+        per_device_eval_batch_size=8,
+        num_train_epochs=3,
         weight_decay=0.01,
         evaluation_strategy="epoch",
         save_strategy="epoch",
         load_best_model_at_end=True,
+        fp16=fp16,
+        fp16_full_eval=fp16_full_eval,
+        gradient_accumulation_steps=gradient_accumulation_steps
     )
 
     trainer = Trainer(
@@ -150,10 +101,9 @@ def test(test_df, model_path, id2label, label2id):
     tokenizer = AutoTokenizer.from_pretrained(model_path)
 
     # load best model
-    #model = AutoModelForSequenceClassification.from_pretrained(
-    #   model_path, num_labels=len(label2id), id2label=id2label, label2id=label2id, ignore_mismatched_sizes=True
-    #)
-    model = CustomModel(model_path, label2id, id2label)
+    model = AutoModelForSequenceClassification.from_pretrained(
+       model_path, num_labels=len(label2id), id2label=id2label, label2id=label2id, ignore_mismatched_sizes=True
+    )
             
     test_dataset = Dataset.from_pandas(test_df)
 
@@ -186,7 +136,7 @@ def create_arg_parser():
     parser.add_argument("--subtask", "-sb", required=True, help="Subtask (A or B).", type=str, choices=['A', 'B'])
     parser.add_argument("--model", "-m", required=True, help="Transformer to train and test", type=str)
     parser.add_argument("--prediction_file_path", "-p", required=True, help="Path where to save the prediction file.", type=str)
-    parser.add_argument("--disable_finetuning", "-df", action="store_true", help="Disable finetuning")
+    parser.add_argument("--no_finetuning", "-nf", action="store_true", help="Disable finetuning")
 
     args = parser.parse_args()
     return args
@@ -197,11 +147,11 @@ if __name__ == '__main__':
     args = create_arg_parser()
     
     random_seed = 0
-    train_path = args.train_file_path # For example 'subtaskA_train_multilingual.jsonl'
-    test_path = args.test_file_path # For example 'subtaskA_test_multilingual.jsonl'
-    subtask = args.subtask # For example 'A'
-    model = args.model # For example 'xlm-roberta-base'
-    prediction_path = args.prediction_file_path # For example 'subtaskB_predictions.jsonl'
+    train_path =  args.train_file_path # For example 'subtaskA_train_multilingual.jsonl'
+    test_path =  args.test_file_path # For example 'subtaskA_test_multilingual.jsonl'
+    model =  args.model # For example 'xlm-roberta-base'
+    subtask =  args.subtask # For example 'A'
+    prediction_path = args.prediction_file_path # For example subtaskB_predictions.jsonl
 
     logging.basicConfig(filename='logs.log', encoding='utf-8', level=logging.DEBUG)
 
@@ -228,12 +178,15 @@ if __name__ == '__main__':
     # get data for train/dev/test sets
     train_df, valid_df, test_df = get_data(train_path, test_path, random_seed)
     
-    if not args.disable_finetuning:
-        # train detector model, this step can be skipped when testing already finetuned models
-        fine_tune(train_df, valid_df, f"{model}/subtask{subtask}/{random_seed}", id2label, label2id, model)
-
-    # test detector model
-    results, predictions = test(test_df, f"{model}/subtask{subtask}/{random_seed}/best/", id2label, label2id)
+    if args.no_finetuning:
+        # test an already finetuned model
+        # assumes the "best" directory is in the same directory as this script 
+        results, predictions = test(test_df, f"{dirname(__file__)}/best/", id2label, label2id)
+    else:
+        # train detector model
+        fine_tune(train_df, valid_df, f"{model}/subtask{subtask}/{random_seed}", id2label, label2id, model, fp16=True, fp16_full_eval=True, gradient_accumulation_steps=4)
+        # test detector model
+        results, predictions = test(test_df, f"{model}/subtask{subtask}/{random_seed}/best/", id2label, label2id)
     
     # Output the results
     print(results)

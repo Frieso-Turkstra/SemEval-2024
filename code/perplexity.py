@@ -3,19 +3,19 @@ import torch
 from tqdm import tqdm
 import pandas as pd
 import argparse
-from utils import extract_file_name
-
-
-# https://huggingface.co/spaces/evaluate-metric/perplexity
-# https://huggingface.co/docs/transformers/perplexity 
 
 
 def create_argparser():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', '-m', required=True, help='Transformer to train and test', type=str)
     parser.add_argument('--input_file', '-i', required=True, help='Path to the input file.', type=str)
-    parser.add_argument('--output_file', '-o', help='Path to the output file.', type=str)
-    parser.add_argument('--stride', '-s', help='Set stride of the sliding window', default=512, type=int)
+
+    # specify the model or automatically select best model depending on subtask
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('--subtask', '-sb', help='Subtask (A_mono, A_multi or B)', type=str, choices=['A_mono', 'A_multi', 'B'])
+    group.add_argument('--model', '-m', help='Transformer to train and test', type=str)
+
+    parser.add_argument('--output_file', '-o', required=False, help='Path to the output file.', type=str)
+    parser.add_argument('--stride', '-s', required=False, help='Set stride of the sliding window', type=int, default=512)
     args = parser.parse_args()
     return args
 
@@ -57,10 +57,19 @@ def calculate_perplexity(encodings, model, stride, device='cuda'):
 if __name__ == '__main__':
     args = create_argparser()
 
+    # Select a model
+    models = {
+        'A_mono': 'gpt2-xl',
+        'A_multi': 'bigscience/bloomz-1b1',
+        'B': 'gpt2-xl',
+        None: args.model
+    }
+    model_path = models[args.subtask]
+
     # Set up model and tokenizer
     device = 'cuda'
-    model = AutoModelForCausalLM.from_pretrained(args.model).to(device)
-    tokenizer = AutoTokenizer.from_pretrained(args.model)
+    model = AutoModelForCausalLM.from_pretrained(model_path).to(device)
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
     tokenizer.pad_token = tokenizer.eos_token
     max_length = tokenizer.model_max_length
 
@@ -76,8 +85,7 @@ if __name__ == '__main__':
 
     # Save results to output file
     if not (output_file := args.output_file):
-        file_name = extract_file_name(args.input_file)
-        output_file = f'perplexities/{file_name}_{args.model}_{args.stride}.jsonl'
-    
+       output_file = f'perplexities_{args.subtask}.jsonl'
+
     perplexities_df = pd.DataFrame({'id': df['id'], 'perplexity': perplexities})
-    perplexities_df.to_json(output_file, lines=True, orient='records')
+    perplexities_df.to_json(args.output_file, lines=True, orient='records')

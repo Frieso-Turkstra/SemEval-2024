@@ -72,10 +72,10 @@ def split_too_large_entries(files, max_size=10_000):
         for _, row in too_large.iterrows():
             subtexts = split_text(row['text'])
             for subtext in subtexts:
-                split_entries.append({'text': subtext, 'id': id})
+                split_entries.append({'text': subtext, 'id': row['id'], 'model': row['model'], 'source': row['source'], 'label': row['label']})
                 
         # add the split entries to the original file and save
-        combined = pd.concat([df, split_entries], ignore_index=True) 
+        combined = pd.concat([df, pd.DataFrame(split_entries)], ignore_index=True) 
         combined.to_json(file, lines=True, orient='records')
 
 
@@ -122,3 +122,20 @@ def one_hot_encode(file_path: str) -> None:
     file_name = f"{file_path[:file_path.rfind('.')]}_norm.jsonl"
     norm_df = pd.DataFrame({'id': df['id'], 'data': one_hot_encodings})
     norm_df.to_json(file_name, lines=True, orient='records')
+
+
+def create_vector(file_path: str) -> None:
+    df = pd.read_json(file_path, lines=True)
+    features = df["features"]
+
+    vectors = []
+    for i in range(len(features)):
+        vector = list(features[i].values())
+        ngrams = vector.pop(-1)
+        pos_tags = vector.pop(-1)
+        vector += ngrams
+        vector += pos_tags.values()
+        vectors.append(vector)
+
+    df["vector"] = vectors
+    df.to_json(file_path, lines=True, orient='records')

@@ -3,6 +3,7 @@ import pandas as pd
 import evaluate
 import numpy as np
 from transformers import AutoModelForSequenceClassification, TrainingArguments, Trainer, DataCollatorWithPadding, AutoTokenizer, set_seed
+from transformers import IntervalStrategy, EarlyStoppingCallback
 import os
 from sklearn.model_selection import train_test_split
 from scipy.special import softmax
@@ -10,6 +11,7 @@ import argparse
 import logging
 from os.path import dirname
 
+# python transformer_baseline.py -tr data/subtaskA_train_monolingual.jsonl -t data/subtaskA_dev_monolingual.jsonl -sb B -m "bert-base-cased" -p data/predictions_baseline.jsonl
 
 def preprocess_function(examples, **fn_kwargs):
     return fn_kwargs['tokenizer'](examples["text"], truncation=True)
@@ -65,11 +67,16 @@ def fine_tune(train_df, valid_df, checkpoints_path, id2label, label2id, model):
         learning_rate=2e-5,
         per_device_train_batch_size=16,
         per_device_eval_batch_size=16,
-        num_train_epochs=3,
+        num_train_epochs=50, 
         weight_decay=0.01,
-        evaluation_strategy="epoch",
-        save_strategy="epoch",
+        evaluation_strategy=IntervalStrategy.STEPS, # "steps", was epoch
+        eval_steps=50, # evaluate and save every 50 steps
+        save_total_limit=2, # only last 2 models are saved
+        save_strategy=IntervalStrategy.STEPS, 
+        eval_accumulation_steps=1,
+        push_to_hub=False,
         load_best_model_at_end=True,
+        metric_for_best_model='f1'
     )
 
     trainer = Trainer(
@@ -80,6 +87,7 @@ def fine_tune(train_df, valid_df, checkpoints_path, id2label, label2id, model):
         tokenizer=tokenizer,
         data_collator=data_collator,
         compute_metrics=compute_metrics,
+        callbacks = [EarlyStoppingCallback(early_stopping_patience=5)]
     )
 
     trainer.train()
