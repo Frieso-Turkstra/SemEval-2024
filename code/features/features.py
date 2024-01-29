@@ -13,6 +13,8 @@ import stanza
 from langdetect import detect
 from collections import Counter
 from nltk import bigrams
+import string
+
 
 
 # Download necessary resources from NLTK
@@ -49,6 +51,8 @@ def calculate_sentence_length_range(sentence_lengths):
 # Function to calculate average word length
 def calculate_avg_word_length(text):
     words = word_tokenize(text)
+    # Filter out punctuation
+    words = [word for word in words if word not in string.punctuation]
     return np.mean([len(word) for word in words]) if words else 0
 
 # Function to extract bigrams
