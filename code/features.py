@@ -8,6 +8,39 @@ import nltk
 import math
 import tqdm
 import string
+import langdetect
+import stanza
+
+
+# Function to detect the language of the text
+def detect_language(text):
+    try:
+        return langdetect.detect(text)
+    except:
+        return "en"
+
+
+# Function to load Stanza model for a given language
+def load_stanza_model(language):
+    try:
+        return stanza.Pipeline(lang=language, processors='tokenize,pos')
+    except Exception as e:
+        print(f"Stanza model loading error for language {language}: {e}. Defaulting to English.")
+        return stanza.Pipeline(lang='en', processors='tokenize,pos')
+
+
+# Function to calculate proportions of POS tags in text
+def pos_tag_proportions(text, stanza_model=None):
+    if stanza_model is not None:
+        doc = stanza_model(text)
+        pos_tags = [(word.text, word.upos) for sent in doc.sentences for word in sent.words]
+    else:
+        tokens = nltk.word_tokenize(text)
+        pos_tags = nltk.pos_tag(tokens)
+    
+    tag_freq = nltk.FreqDist(tag for (word, tag) in pos_tags)
+    total = sum(tag_freq.values())
+    return {tag: freq / total for tag, freq in tag_freq.items()}
 
 
 # Function to calculate text coherence using PMI and NPMI
@@ -40,7 +73,7 @@ def calculate_text_coherence(tokens, window_size=2):
     return avg_pmi, avg_npmi
 
 
-def get_feature_vector(id, text, subtask):
+def get_feature_vector(id, text, subtask, loaded_stanza_models):
     vector = [id]
 
     # calculate some common values that are used in different features
@@ -73,13 +106,18 @@ def get_feature_vector(id, text, subtask):
     # subtask specific features
     if subtask == "A_multi":
         # pos_multi
-        pass 
+        language = detect_language(text)
+        if language not in loaded_stanza_models:
+            loaded_stanza_models[language] = load_stanza_model(language)
+        stanza_model = loaded_stanza_models[language]
+        vector.append(pos_tag_proportions(text, stanza_model))
     else: 
         # spelling errors
         spell = SpellChecker()
         vector.append(len(spell.unknown(words)))
+        
         # pos_mono
-        pass
+        vector.append(pos_tag_proportions(text))
     
     return vector
 
@@ -118,12 +156,13 @@ if __name__ == "__main__":
 
     # store all feature vectors in a dataframe
     features_df = pd.DataFrame(columns=features)
+    loaded_stanza_models = {}
     i = 0
     for id, text in tqdm.tqdm(zip(data_df["id"], data_df["text"])):
         i += 1
         if i == 5:
             break
-        feature_vector = get_feature_vector(id, text, args.subtask)
+        feature_vector = get_feature_vector(id, text, args.subtask, loaded_stanza_models)
         features_df.loc[len(features_df.index)] = feature_vector
     
     # concatenate with the perplexity scores
