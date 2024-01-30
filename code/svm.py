@@ -4,7 +4,7 @@ import numpy as np
 import argparse
 
 # python svm.py -tr ..\data\subtaskA_dev_monolingual.jsonl -t ..\data\subtaskA_dev_monolingual.jsonl -trh hidden_states_A_mono_test.jsonl -th hidden_states_A_mono_test.jsonl -trf features_A_mono_dev.jsonl -tf features_A_mono_dev.jsonl 
-# python svm.py -tr subtaskA_train_monolingual.jsonl -t subtaskA_dev_monolingual.jsonl -trh hidden_states_A_mono_train.jsonl -th hidden_states_A_mono_test.jsonl -trf features_A_mono_train.jsonl -tf features_A_mono_dev.jsonl
+# python svm.py -tr subtaskB_train.jsonl -t subtaskB_dev.jsonl -trh hidden_states_B_train.jsonl -th hidden_states_B_test.jsonl -trf features_B_train.jsonl -tf features_B_dev.jsonl
 
 def get_data(data, hidden_states, features):
     # get the labels
@@ -35,6 +35,7 @@ def get_data(data, hidden_states, features):
 
 def create_arg_parser():
     parser = argparse.ArgumentParser()
+    parser.add_argument('--subtask', '-sb', required=True, help='Subtask (A_mono, A_multi or B)', type=str, choices=['A_mono', 'A_multi', 'B'])
     parser.add_argument("--train_file_path", "-tr", required=True, help="Path to the training file.", type=str)
     parser.add_argument("--test_file_path", "-t", required=True, help="Path to the test file.", type=str)
     parser.add_argument("--train_hidden_states_file_path", "-trh", required=True, help="Path to the hidden states training file.", type=str)
@@ -66,6 +67,5 @@ if __name__ == "__main__":
     data_df = pd.read_json(args.test_file_path, lines=True)
     results_df["id"] = data_df["id"]
     results_df["label"] = Y_pred
-    file_name = args.test_file_path.replace("/", "-").replace("\\", "-")
-    results_df.to_json(f"predictions_{file_name}.jsonl", lines=True, orient="records")
+    results_df.to_json(f"predictions_{args.subtask}.jsonl", lines=True, orient="records")
     print("Successfully saved predictions!")
