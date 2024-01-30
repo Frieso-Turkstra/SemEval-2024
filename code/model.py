@@ -43,7 +43,6 @@ class CustomModel(nn.Module):
         
         # A hidden state is of the shape (batch_size, max_length, hidden_size)
         batch_size = len(outputs.hidden_states[-1][:,0,:].view(-1, self.config.hidden_size))
-        print('Batch_size = {}'.format(batch_size))
         for i in range(batch_size): 
             hidden_states = list()
             for j in range(1, self.N+1):
@@ -80,7 +79,7 @@ def compute_metrics(eval_pred):
     return results
 
 
-def extract_hidden_states(N, data_df, output_file, model_path, id2label, label2id):
+def extract_hidden_states(N, data_df, model_path, id2label, label2id):
     
     # load tokenizer from saved model 
     tokenizer = AutoTokenizer.from_pretrained(model_path)
@@ -105,9 +104,8 @@ def extract_hidden_states(N, data_df, output_file, model_path, id2label, label2i
     # calls forward function on each sample in dataset
     trainer.predict(tokenized_dataset)
 
-    # save hidden states to a file
-    df = pd.DataFrame(model.hidden_states)
-    df.to_json(output_file, lines=True, orient='records')
+    # return hidden states
+    return model.hidden_states
 
 
 def fine_tune(train_df, valid_df, checkpoints_path, id2label, label2id, model):
@@ -197,6 +195,7 @@ def create_arg_parser():
     group.add_argument('--model', '-m', help='Transformer to train and test', type=str)
     
     parser.add_argument('--num_extracted_layers', '-n', required=False, help='The number of last hidden layers to extract', type=int, default=4)
+    parser.add_argument('--output_file', '-o', required=False, help='Path to the output file.', type=str)
     parser.add_argument('--disable_finetuning', '-df', required=False, help='Disable finetuning', action='store_true')
     
     args = parser.parse_args()
@@ -250,5 +249,11 @@ if __name__ == '__main__':
 
     # extract the last N hidden layers for each sample
     trained_model = f'{model}/subtask{subtask}/{random_seed}/best'
-    output_file = f'hidden_states_{subtask}.jsonl'
-    extract_hidden_states(args.num_extracted_layers, train_df, output_file, trained_model, id2label, label2id)
+    hidden_states = extract_hidden_states(args.num_extracted_layers, train_df, trained_model, id2label, label2id)
+
+    # save hidden states to file
+    if not (output_file := args.output_file):
+       output_file = f'hidden_states_{subtask}.jsonl'
+
+    df = pd.DataFrame(hidden_states)
+    df.to_json(output_file, lines=True, orient='records')
