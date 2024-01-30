@@ -47,19 +47,23 @@ def create_arg_parser():
 if __name__ == "__main__":
     args = create_arg_parser()
     
+    print("Reading data...")
     X_train, Y_train = get_data(args.train_file_path, args.train_hidden_states_file_path, args.train_features_file_path)
     X_test, Y_test = get_data(args.test_file_path, args.test_hidden_states_file_path, args.test_features_file_path)
    
     classifier = LinearSVC()
+    print("Training...")
     classifier.fit(X_train, Y_train)
 
     # Use the fitted classifier to predict classes on the test data
+    print("Predicting...")
     Y_pred = classifier.predict(X_test)
-    
+
     # save predictions with their id to file in correct format
     results_df = pd.DataFrame()
 
     data_df = pd.read_json(args.test_file_path, lines=True)
     results_df["id"] = data_df["id"]
     results_df["label"] = Y_pred
-    results_df.to_json("predictions.jsonl", lines=True, orient="records")
+    results_df.to_json(f"predictions_{args.test_file_path}.jsonl", lines=True, orient="records")
+    print("Successfully saved predictions!")
