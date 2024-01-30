@@ -260,7 +260,7 @@ if __name__ == '__main__':
     #   output_file = f'hidden_states_{subtask}.jsonl'
 
     hidden_states_train_df = pd.DataFrame(hidden_states_train)
-    hidden_states_train_df.to_json(f'hidden_states_{subtask}_train', lines=True, orient='records')
+    hidden_states_train_df.to_json(f'hidden_states_{subtask}_train.jsonl', lines=True, orient='records')
 
     hidden_states_test_df = pd.DataFrame(hidden_states_test)
-    hidden_states_test_df.to_json(f'hidden_states_{subtask}_test', lines=True, orient='records')
+    hidden_states_test_df.to_json(f'hidden_states_{subtask}_test.jsonl', lines=True, orient='records')
