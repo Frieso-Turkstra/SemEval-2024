@@ -13,6 +13,8 @@ import stanza
 from langdetect import detect
 from collections import Counter
 from nltk import bigrams
+import string
+
 
 
 # Download necessary resources from NLTK
@@ -49,6 +51,8 @@ def calculate_sentence_length_range(sentence_lengths):
 # Function to calculate average word length
 def calculate_avg_word_length(text):
     words = word_tokenize(text)
+    # Filter out punctuation
+    words = [word for word in words if word not in string.punctuation]
     return np.mean([len(word) for word in words]) if words else 0
 
 # Function to extract bigrams
@@ -108,7 +112,7 @@ def calculate_text_coherence(text, window_size=2):
     return avg_pmi, avg_npmi
 
 # Function to calculate proportions of POS tags in text
-def pos_tag_proportions(text, stanza_model=None):
+def pos_tag_proportions(text, all_tags, stanza_model=None):
     if stanza_model is not None:
         doc = stanza_model(text)
         pos_tags = [(word.text, word.upos) for sent in doc.sentences for word in sent.words]
@@ -118,7 +122,10 @@ def pos_tag_proportions(text, stanza_model=None):
     
     tag_freq = FreqDist(tag for (word, tag) in pos_tags)
     total = sum(tag_freq.values())
-    return {tag: freq / total for tag, freq in tag_freq.items()}
+
+    # Standardize the POS tag vector
+    standardized_vector = {tag: (tag_freq[tag] / total if tag in tag_freq else 0) for tag in all_tags}
+    return standardized_vector
 
 # Function to detect the language of the text
 def detect_language(text):
@@ -170,6 +177,17 @@ if __name__ == '__main__':
 
     loaded_stanza_models = {}
     output_data = []
+    all_tags = set()
+
+    # Preprocessing to collect all unique POS tags
+    for item in data:
+        text = clean_html_text(item['text'])
+        language = detect_language(text)
+        if language not in loaded_stanza_models:
+            loaded_stanza_models[language] = load_stanza_model(language)
+        stanza_model = loaded_stanza_models[language]
+        pos_vector = pos_tag_proportions(text, set(), stanza_model)
+        all_tags.update(pos_vector.keys())
 
     # Extract and vectorize all bigrams if the mode is 'ngrams'
     if args.mode == 'ngrams':
@@ -199,13 +217,13 @@ if __name__ == '__main__':
             feature_result = avg_npmi
         elif args.mode == 'ngrams':
             N = 10  # Number of top bigrams to extract
-            doc_idx = data.index(item)  
-            bigram_freqs = bigram_vectors[doc_idx].toarray()[0]  
-            top_bigrams_indices = np.argsort(bigram_freqs)[-N:][::-1] 
+            doc_idx = data.index(item)
+            bigram_freqs = bigram_vectors[doc_idx].toarray()[0]
+            top_bigrams_indices = np.argsort(bigram_freqs)[-N:][::-1]
             top_bigrams_frequencies = [bigram_freqs[idx] for idx in top_bigrams_indices]
             feature_result = top_bigrams_frequencies
         elif args.mode == 'pos_mono':
-            feature_result = pos_tag_proportions(text)
+            feature_result = pos_tag_proportions(text, all_tags)
         elif args.mode == 'spelling_error_mono':
             feature_result = count_spelling_errors(text)
         elif args.mode == 'pos_multi':
@@ -213,14 +231,8 @@ if __name__ == '__main__':
             if language not in loaded_stanza_models:
                 loaded_stanza_models[language] = load_stanza_model(language)
             stanza_model = loaded_stanza_models[language]
-            feature_result = pos_tag_proportions(text, stanza_model)
+            feature_result = pos_tag_proportions(text, all_tags, stanza_model)
 
-        # Convert NumPy types to Python types before JSON serialization
-        if isinstance(feature_result, np.integer):
-            feature_result = feature_result.item()
-        elif isinstance(feature_result, np.floating):
-            feature_result = feature_result.item()
-        
         # Convert NumPy types to Python types before JSON serialization
         if isinstance(feature_result, np.number):  # This checks for any kind of NumPy number
             feature_result = feature_result.item()  # Converts to native Python type
