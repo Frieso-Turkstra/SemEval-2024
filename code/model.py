@@ -79,8 +79,11 @@ def compute_metrics(eval_pred):
     return results
 
 
-def extract_hidden_states(N, data_df, model_path, id2label, label2id):
+def extract_hidden_states(N, file_path, model_path, id2label, label2id):
     
+    # read in data
+    data_df = pd.read_json(file_path, lines=True)
+
     # load tokenizer from saved model 
     tokenizer = AutoTokenizer.from_pretrained(model_path)
 
@@ -249,11 +252,15 @@ if __name__ == '__main__':
 
     # extract the last N hidden layers for each sample
     trained_model = f'{model}/subtask{subtask}/{random_seed}/best'
-    hidden_states = extract_hidden_states(args.num_extracted_layers, train_df, trained_model, id2label, label2id)
+    hidden_states_train = extract_hidden_states(args.num_extracted_layers, train_path, trained_model, id2label, label2id)
+    hidden_states_test = extract_hidden_states(args.num_extracted_layers, test_path, trained_model, id2label, label2id)
 
     # save hidden states to file
-    if not (output_file := args.output_file):
-       output_file = f'hidden_states_{subtask}.jsonl'
+    #if not (output_file := args.output_file):
+    #   output_file = f'hidden_states_{subtask}.jsonl'
 
-    df = pd.DataFrame(hidden_states)
-    df.to_json(output_file, lines=True, orient='records')
+    hidden_states_train_df = pd.DataFrame(hidden_states_train)
+    hidden_states_train_df.to_json(f'hidden_states_{subtask}_train', lines=True, orient='records')
+
+    hidden_states_test_df = pd.DataFrame(hidden_states_test)
+    hidden_states_test_df.to_json(f'hidden_states_{subtask}_test', lines=True, orient='records')
