@@ -4,6 +4,7 @@ import numpy as np
 import argparse
 
 # python svm.py -tr ..\data\subtaskA_dev_monolingual.jsonl -t ..\data\subtaskA_dev_monolingual.jsonl -trh hidden_states_A_mono_test.jsonl -th hidden_states_A_mono_test.jsonl -trf features_A_mono_dev.jsonl -tf features_A_mono_dev.jsonl 
+# python svm.py -tr subtaskA_train_monolingual.jsonl -t subtaskA_dev_monolingual.jsonl -trh hidden_states_A_mono_train.jsonl -th hidden_states_A_mono_test.jsonl -trf features_A_mono_train.jsonl -tf features_A_mono_dev.jsonl
 
 def get_data(data, hidden_states, features):
     # get the labels
@@ -65,5 +66,6 @@ if __name__ == "__main__":
     data_df = pd.read_json(args.test_file_path, lines=True)
     results_df["id"] = data_df["id"]
     results_df["label"] = Y_pred
-    results_df.to_json(f"predictions_{args.test_file_path}.jsonl", lines=True, orient="records")
+    file_name = args.test_file_path.replace("/", "-").replace("\\", "-")
+    results_df.to_json(f"predictions_{file_name}.jsonl", lines=True, orient="records")
     print("Successfully saved predictions!")
