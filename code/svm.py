@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import argparse
 
+# THESE COMMANDS ARE FOR TESTING, DO NOT USE THEM
 # python svm.py -tr ..\data\subtaskA_dev_monolingual.jsonl -t ..\data\subtaskA_dev_monolingual.jsonl -trh hidden_states_A_mono_test.jsonl -th hidden_states_A_mono_test.jsonl -trf features_A_mono_dev.jsonl -tf features_A_mono_dev.jsonl 
 # python svm.py -tr subtaskB_train.jsonl -t subtaskB_dev.jsonl -trh hidden_states_B_train.jsonl -th hidden_states_B_test.jsonl -trf features_B_train.jsonl -tf features_B_dev.jsonl
 
@@ -69,5 +70,5 @@ if __name__ == "__main__":
     data_df = pd.read_json(args.test_file_path, lines=True)
     results_df["id"] = data_df["id"]
     results_df["label"] = Y_pred
-    results_df.to_json(f"predictions_{args.subtask}.jsonl", lines=True, orient="records")
+    results_df.to_json(f"predictions_{args.subtask}_{args.num_hidden_states}.jsonl", lines=True, orient="records")
     print("Successfully saved predictions!")
