@@ -29,22 +29,22 @@ def get_data(data, features, num_hidden_states):
     vectors_df = pd.DataFrame()
 
     # add ids, features, merge hidden states into one column and flatten
-    vectors_df['feature_vector'] = features_df.values.tolist()
+    #vectors_df['feature_vector'] = features_df.values.tolist()
     #vectors_df['hidden_states'] = hidden_states_df.values.tolist()
     #vectors_df['hidden_states'] = vectors_df['hidden_states'].apply(np.ravel)
 
     # add ids to dataframe
-    vectors_df.insert(0, "id", features_df["id"])
+    #vectors_df.insert(0, "id", features_df["id"])
     features_df.drop(["id"], axis=1, inplace=True)
 
-    for feature_vector in vectors_df["feature_vector"]:
-        vectors.append(feature_vector)
+    #for feature_vector in vectors_df["feature_vector"]:
+    #    vectors.append(feature_vector)
 
     #for hidden_state, feature_vector in zip(vectors_df["hidden_states"], vectors_df["feature_vector"]):
     #    vectors.append(np.concatenate((hidden_state, feature_vector)))
     
     # also return the correct labels
-    return vectors, labels
+    return features_df.values.tolist(), labels
 
 def create_arg_parser():
     parser = argparse.ArgumentParser()
