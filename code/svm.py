@@ -8,7 +8,7 @@ import argparse
 # python svm.py -tr ..\data\subtaskA_dev_monolingual.jsonl -t ..\data\subtaskA_dev_monolingual.jsonl -trh hidden_states_A_mono_test.jsonl -th hidden_states_A_mono_test.jsonl -trf features_A_mono_dev.jsonl -tf features_A_mono_dev.jsonl 
 # python svm.py -tr subtaskB_train.jsonl -t subtaskB_dev.jsonl -trh hidden_states_B_train.jsonl -th hidden_states_B_test.jsonl -trf features_B_train.jsonl -tf features_B_dev.jsonl
 
-def get_data(data, features, hidden_states, num_hidden_states):
+def get_data(data, features, num_hidden_states):
     # get the labels
     data_df = pd.read_json(data, lines=True)
     try:
