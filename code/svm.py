@@ -20,6 +20,10 @@ def get_data(data, features, hidden_states, num_hidden_states):
     hidden_states_df = hidden_states_df.iloc[: , :num_hidden_states]
     features_df = pd.read_json(features, lines=True)
 
+    # make sure there are no NaNs
+    hidden_states_df = hidden_states_df.fillna(0)
+    features_df = features_df.fillna(0)
+
     vectors = list()
     vectors_df = pd.DataFrame()
 
