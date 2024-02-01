@@ -10,7 +10,10 @@ import argparse
 def get_data(data, features, hidden_states, num_hidden_states):
     # get the labels
     data_df = pd.read_json(data, lines=True)
-    labels = data_df["label"]
+    try:
+        labels = data_df["label"]
+    except: # there are no labels because it is the test set
+        labels = []
     
     # get input vectors, only select the last num_hidden_states
     hidden_states_df = pd.read_json(hidden_states, lines=True)
