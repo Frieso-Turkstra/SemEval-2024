@@ -61,24 +61,24 @@ if __name__ == "__main__":
     args = create_arg_parser()
     
     print("Reading data...")
-    #X_train, Y_train = get_data(args.train_file_path, args.train_features_file_path, args.train_hidden_states_file_path, args.num_hidden_states)
+    X_train, Y_train = get_data(args.train_file_path, args.train_features_file_path, args.train_hidden_states_file_path, args.num_hidden_states)
     
-    train_file_1 = ""
-    train_file_2 = ""
-    feature_file_1 = ""
-    feature_file_2 = ""
-    hidden_states_1 = ""
-    hidden_states_2 = ""
-    X_train_1, Y_train_1 = get_data(train_file_1, feature_file_1, hidden_states_1, 2)
-    X_train_2, Y_train_2 = get_data(train_file_2, feature_file_2, hidden_states_2, 2)
+    #train_file_1 = ""
+    #train_file_2 = ""
+    #feature_file_1 = ""
+    #feature_file_2 = ""
+    #hidden_states_1 = ""
+    #hidden_states_2 = ""
+    #X_train_1, Y_train_1 = get_data(train_file_1, feature_file_1, hidden_states_1, 2)
+    #X_train_2, Y_train_2 = get_data(train_file_2, feature_file_2, hidden_states_2, 2)
     X_test, Y_test = get_data(args.test_file_path, args.test_features_file_path, args.test_hidden_states_file_path, args.num_hidden_states)
     
     print("Training...")
-    #classifier = LinearSVC()
-    #classifier.fit(X_train, Y_train)
-    classifier = SGDClassifier()
-    classifier.partial_fit(X_train_1, Y_train_1)
-    classifier.partial_fit(X_train_2, Y_train_2)
+    classifier = LinearSVC()
+    classifier.fit(X_train, Y_train)
+    #classifier = SGDClassifier()
+    #classifier.partial_fit(X_train_1, Y_train_1)
+    #classifier.partial_fit(X_train_2, Y_train_2)
 
     # Use the fitted classifier to predict classes on the test data
     print("Predicting...")
