@@ -26,6 +26,10 @@ def split_file(file_path: str, batch_size: int) -> None:
         file = df[i*batch_size:i*batch_size+batch_size]
         file.to_json(f'{file_path}_{i}.jsonl', lines=True, orient='records')
 
+file_names = [
+    "hidden_states_A_mono_test_0.jsonl",
+    "hidden_states_A_mono_test_1.jsonl",
+]
 
 def merge_files(files: list, output_file: str) -> None:
     """
@@ -36,6 +40,7 @@ def merge_files(files: list, output_file: str) -> None:
     temp = pd.concat(dfs, ignore_index=True)
     temp.to_json(output_file, lines=True, orient='records')
 
+merge_files(file_names, "hidden_states_A_mono_test_merged.jsonl")
 
 def split_text(text, batch_size=10_000):
     """
@@ -72,12 +77,13 @@ def split_too_large_entries(files, max_size=10_000):
         for _, row in too_large.iterrows():
             subtexts = split_text(row['text'])
             for subtext in subtexts:
-                split_entries.append({'text': subtext, 'id': row['id'], 'model': row['model'], 'source': row['source'], 'label': row['label']})
-                
+                split_entries.append({'text': subtext, 'id': row['id']})
+        
         # add the split entries to the original file and save
         combined = pd.concat([df, pd.DataFrame(split_entries)], ignore_index=True) 
-        combined.to_json(file, lines=True, orient='records')
+        combined.to_json("test_split.jsonl", lines=True, orient='records')
 
+#split_too_large_entries(["..\data\subtaskA_test_multilingual.jsonl"], 5000)
 
 def merge_on_id(file):
     """
@@ -95,33 +101,6 @@ def merge_on_id(file):
 
     new_df = pd.DataFrame(data)
     new_df.to_json(file, lines=True, orient='records')
-
-
-def normalize(file_path: str) -> None:
-    # read in data
-    df = pd.read_json(file_path, lines=True)
-    values = df['perplexity'] # or df['data']
-
-    # normalize data (min max normalization)
-    norm_values = (values - values.min()) / (values.max() - values.min())
-
-    # save data to new file in same directory as original file
-    file_name = f"{file_path[:file_path.rfind('.')]}_norm.jsonl"
-    norm_df = pd.DataFrame({'id': df['id'], 'data': norm_values})
-    norm_df.to_json(file_name, lines=True, orient='records')
-
-
-def one_hot_encode(file_path: str) -> None:
-    # Read in data
-    df = pd.read_json(file_path, lines=True)
-
-    # Get one hot encoding of data column
-    one_hot_encodings = pd.get_dummies(df['data'])
-    
-    # Save data to new file in same directory as original file
-    file_name = f"{file_path[:file_path.rfind('.')]}_norm.jsonl"
-    norm_df = pd.DataFrame({'id': df['id'], 'data': one_hot_encodings})
-    norm_df.to_json(file_name, lines=True, orient='records')
 
 
 def create_vector(file_path: str) -> None:
