@@ -252,15 +252,20 @@ if __name__ == '__main__':
 
     # extract the last N hidden layers for each sample
     trained_model = f'{model}/subtask{subtask}/{random_seed}/best'
+
+    
     hidden_states_train = extract_hidden_states(args.num_extracted_layers, train_path, trained_model, id2label, label2id)
+    hidden_states_train_df = pd.DataFrame(hidden_states_train)
+    hidden_states_train_df.to_json(f'hidden_states_{subtask}_train.jsonl', lines=True, orient='records')
+
     hidden_states_test = extract_hidden_states(args.num_extracted_layers, test_path, trained_model, id2label, label2id)
+    hidden_states_test_df = pd.DataFrame(hidden_states_test)
+    hidden_states_test_df.to_json(f'hidden_states_{subtask}_test.jsonl', lines=True, orient='records')
 
     # save hidden states to file
     #if not (output_file := args.output_file):
     #   output_file = f'hidden_states_{subtask}.jsonl'
 
-    hidden_states_train_df = pd.DataFrame(hidden_states_train)
-    hidden_states_train_df.to_json(f'hidden_states_{subtask}_train.jsonl', lines=True, orient='records')
+    
 
-    hidden_states_test_df = pd.DataFrame(hidden_states_test)
-    hidden_states_test_df.to_json(f'hidden_states_{subtask}_test.jsonl', lines=True, orient='records')
+    
