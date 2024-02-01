@@ -1,5 +1,6 @@
 import pandas as pd
 import math
+import json
 
 
 def extract_file_name(file_path: str) -> str:
@@ -40,7 +41,28 @@ def merge_files(files: list, output_file: str) -> None:
     temp = pd.concat(dfs, ignore_index=True)
     temp.to_json(output_file, lines=True, orient='records')
 
-merge_files(file_names, "hidden_states_A_mono_test_merged.jsonl")
+#merge_files(file_names, "hidden_states_A_mono_test_merged.jsonl")
+
+def merge_files_new():
+    """
+    files -> list of jsonl files to be merged
+    output_file -> path to which the merged jsonl file will be saved
+    """
+    file_A = ""
+    file_B = "" 
+    output_file = "" 
+
+    df = pd.read_json(file_A, lines=True)
+    with open(output_file, "w") as outfile:
+        for row in df.iterrows():
+            print(json.dumps(row), file=outfile)
+
+    df = pd.read_json(file_B, lines=True)
+    with open(output_file, "a") as outfile:
+        for row in df.iterrows():
+            print(json.dumps(row), file=outfile)
+
+merge_files_new()
 
 def split_text(text, batch_size=10_000):
     """
