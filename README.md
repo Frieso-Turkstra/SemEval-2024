@@ -11,7 +11,7 @@ These hidden layers are combined with the features as input for the svm.
 ### Command
 
 ```sh
-python code/train.py --subtask B --train_file_path data/subtaskB_train.jsonl --test_file_path data/subtaskB_dev.jsonl --model xlm-roberta-base
+python code/train.py --subtask B --train_file_path data/subtaskB_train.jsonl --test_file_path data/subtaskB_dev.jsonl --model FacebookAI/xlm-roberta-base
 ```
 
 - **--subtask**: The subtask (A_mono, A_multi, B).
@@ -28,7 +28,7 @@ These hidden layers are combined with the features as input for the svm.
 ### Command
 
 ```sh
-python code/extract_hidden_layers.py --subtask B --input_file_path data/subtaskB_dev.jsonl --model xlm-roberta-base/subtaskB/0/best/ --num_layers 4
+python code/extract_hidden_layers.py --subtask B --input_file_path data/subtaskB_dev.jsonl --model FacebookAI/xlm-roberta-base/subtaskB/0/best/ --num_layers 4
 ```
 
 - **--subtask**: The subtask (A_mono, A_multi, B).
@@ -41,7 +41,7 @@ python code/extract_hidden_layers.py --subtask B --input_file_path data/subtaskB
 ### Overview
 Calculate the perplexity for each text in the data set.
 Depending on your hardware, you may want to split large entries. This can be done by calling
-```split_too_large_entries()``` from ```code/utils.py``` on your dataset. We recommend a maximum token length of 10 000. Do not forget
+```split_too_large_entries()``` from ```code/utils.py``` on your data set. We recommend a maximum token length of 10 000. Do not forget
 to call ```merge_on_id()``` (also from ```code/utils.py```) afterwards to recombine the previously split entries. If memory issues persist, there is also functionality in ```code/utils.py``` for splitting the data set into smaller parts and merging them later on.
 
 ### Command
