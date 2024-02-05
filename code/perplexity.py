@@ -7,27 +7,28 @@ import argparse
 
 def create_argparser():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--input_file', '-i', required=True, help='Path to the input file.', type=str)
 
-    # specify the model or automatically select best model depending on subtask
-    group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument('--subtask', '-sb', help='Subtask (A_mono, A_multi or B)', type=str, choices=['A_mono', 'A_multi', 'B'])
-    group.add_argument('--model', '-m', help='Transformer to train and test', type=str)
+    parser.add_argument("--subtask", "-sb", required=True, help="Subtask (A_mono, A_multi or B).", type=str, choices=["A_mono", "A_multi", "B"])
+    parser.add_argument("--input_file_path", "-i", required=True, help="Path to the input file.", type=str)
+    parser.add_argument("--model", "-m", required=True, help="Transformer model whose 'perplexity' is calculated.", type=str)
+    parser.add_argument("--output_file_path", "-o", required=False, help="Path to the output file.", type=str)
+    parser.add_argument("--stride", "-s", required=False, help="Set stride of the sliding window.", type=int, default=512)
 
-    parser.add_argument('--output_file', '-o', required=False, help='Path to the output file.', type=str)
-    parser.add_argument('--stride', '-s', required=False, help='Set stride of the sliding window', type=int, default=512)
     args = parser.parse_args()
     return args
 
 
-def calculate_perplexity(encodings, model, stride, device='cuda'):
+def calculate_perplexity(encodings, model, stride, device="cuda"):
+    """
+    Sliding window implementation adopted from: https://huggingface.co/docs/transformers/perplexity.
+    """
     perplexities = []
 
     for encoding in tqdm(encodings):
         seq_len = encoding.input_ids.size(1)
-
-        nlls = []
+        nlls = [] # negative log-likelihoods
         prev_end_loc = 0
+
         for begin_loc in range(0, seq_len, stride):
             end_loc = min(begin_loc + max_length, seq_len)
             trg_len = end_loc - prev_end_loc  # may be different from stride on last loop
@@ -54,38 +55,38 @@ def calculate_perplexity(encodings, model, stride, device='cuda'):
     return perplexities
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
+
+    # Read in command line arguments.
     args = create_argparser()
+    subtask = args.subtask
+    input_file_path = args.input_file_path
+    model_path = args.model
+    output_file_path = args.output_file_path
+    stride = args.stride
 
-    # Select a model
-    models = {
-        'A_mono': 'gpt2-xl',
-        'A_multi': 'bigscience/bloomz-1b1',
-        'B': 'gpt2-xl',
-        None: args.model
-    }
-    model_path = models[args.subtask]
-
-    # Set up model and tokenizer
-    device = 'cuda'
+    # Set up model and tokenizer.
+    device = "cuda"
     model = AutoModelForCausalLM.from_pretrained(model_path).to(device)
     tokenizer = AutoTokenizer.from_pretrained(model_path)
     tokenizer.pad_token = tokenizer.eos_token
     max_length = tokenizer.model_max_length
 
-    # Read data
-    df = pd.read_json(args.input_file, lines=True)
-    texts = list(df['text'])
+    # Read in data.
+    df = pd.read_json(input_file_path, lines=True)
+    texts = list(df["text"])
 
-    # Tokenize data
-    encodings = [tokenizer(text, return_tensors='pt') for text in texts]
+    # Tokenize data.
+    encodings = [tokenizer(text, return_tensors="pt") for text in texts]
 
-    # Calculate perplexities
-    perplexities = calculate_perplexity(encodings, model, args.stride)
+    # Calculate perplexities.
+    perplexities = calculate_perplexity(encodings, model, stride)
 
-    # Save results to output file
-    if not (output_file := args.output_file):
-       output_file = f'perplexities_{args.subtask}.jsonl'
+    # Save results to output file.
+    if not output_file_path:
+        input_file_name = input_file_path.replace("/", "-").replace("\\", "-")
+        dot_index = input_file_name.rfind(".")
+        output_file_path = f"perplexities_{input_file_name[:dot_index]}.jsonl"
 
-    perplexities_df = pd.DataFrame({'id': df['id'], 'perplexity': perplexities})
-    perplexities_df.to_json(args.output_file, lines=True, orient='records')
+    perplexities_df = pd.DataFrame({"id": df["id"], "perplexity": perplexities})
+    perplexities_df.to_json(output_file_path, lines=True, orient="records")

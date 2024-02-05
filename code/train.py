@@ -195,12 +195,15 @@ if __name__ == "__main__":
     set_seed(random_seed)
 
     # Read data into train/valid/test dataframes. 
+    print("Reading data...")
     train_df, valid_df, test_df = get_data(train_file_path, test_file_path, random_seed)
 
     # Fine-tune the model.
+    print("Start fine-tuning...")
     fine_tune(train_df, valid_df, f"{model}/subtask{subtask}/{random_seed}", id2label, label2id, model)
 
     # Test the model.
+    print("Testing the fine-tuned model...")
     results, predictions = test(test_df, f"{model}/subtask{subtask}/{random_seed}/best/", id2label, label2id)
     
     # Save results.
@@ -210,4 +213,4 @@ if __name__ == "__main__":
     logging.info(results)
     predictions_df = pd.DataFrame({"id": test_df["id"], "label": predictions})
     predictions_df.to_json(predictions_file_path, lines=True, orient="records")
-
+    print("Successfully saved predictions!")

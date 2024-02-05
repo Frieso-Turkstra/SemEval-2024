@@ -38,14 +38,16 @@ class CustomModel(nn.Module):
         
         # Ensure that the model has enough layers.
         if self.num_layers > self.num_hidden_layers:
-            raise ValueError(f'Cannot extract the last {self.num_layers} layers; the model only has {self.num_hidden_layers}')
+            raise ValueError(f"Cannot extract the last {self.num_layers} layers; the model only has {self.num_hidden_layers}")
     
     
     def forward(self, input_ids=None, attention_mask=None, labels=None):
-        # Extract outputs from the body
+        # Extract outputs from the body.
         outputs = self.model(input_ids=input_ids, attention_mask=attention_mask)
         
-        # A hidden state is of the shape (batch_size, max_length, hidden_size)
+        # A hidden state is of the shape (batch_size, max_length, hidden_size).
+        # The hidden states come in batches, so we loop over the batch and for
+        # each hidden state in the batch, we extract the last N layers.
         batch_size = len(outputs.hidden_states[-1][:,0,:].view(-1, self.hidden_size))
         for i in range(batch_size): 
             hidden_states = list()
@@ -146,6 +148,16 @@ if __name__ == "__main__":
     set_seed(random_seed)
 
     # Extract the last N hidden layers for each sample in the input file.
+    print("Extracting hidden layers...")
     hidden_layers = extract_hidden_layers(input_file_path, num_layers, id2label, label2id, model)
     hidden_layers_df = pd.DataFrame(hidden_layers)
-    hidden_layers_df.to_json(f"hidden_layers_{subtask}.jsonl", lines=True, orient="records")
+
+    # Save results to a file.
+    output_file_path = args.output_file_path
+    if not output_file_path:
+        input_file_name = input_file_path.replace("/", "-").replace("\\", "-")
+        dot_index = input_file_name.rfind(".")
+        output_file_path = f"hidden_layers_{input_file_name[:dot_index]}.jsonl"
+
+    hidden_layers_df.to_json(output_file_path, lines=True, orient="records")
+    print("Successfully saved hidden layers!")
