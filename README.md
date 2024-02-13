@@ -1,8 +1,8 @@
 # SemEval-2024
-This repository is dedicated to Task 8: Multigenerator, Multidomain, and Multilingual Black-Box Machine-Generated Text Detection.
+This repository is dedicated to the submission of group RUG-3 for Task 8: Multigenerator, Multidomain, and Multilingual Black-Box Machine-Generated Text Detection.
 We participated in subtask A (both the mono- and multilingual track) and subtask B.
 
-Additional files are stored as a back-up on the following public drive: https://drive.google.com/drive/folders/1nFSLDokaWRDR-0dez6jvRBTPk_6cZXvX?usp=drive_link
+All data files (train/dev/test sets, features, predictions) can be downloaded from the following public drive: https://drive.google.com/drive/folders/1nFSLDokaWRDR-0dez6jvRBTPk_6cZXvX?usp=drive_link
 
 ## Train model
 
